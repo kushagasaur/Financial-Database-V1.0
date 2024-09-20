@@ -1,0 +1,647 @@
+#Written and based on python
+
+from tkinter import *
+from pandas import *
+from datetime import date
+from datetime import datetime
+from datetime import timedelta
+import tkinter as tk
+import pywhatkit as pwk
+import sqlite3
+import math
+import time
+import turtle
+
+
+
+
+
+root = Tk()
+root.title("Autopay.exe")
+
+
+Total = 0
+global Placeholder
+
+#plan on making this so that it displays a label that indicates when the last invoice group was sent (multiple invoices can be coded to be sent at once)
+Placeholder = "Currently Empty"
+
+
+
+conn = sqlite3.connect('tutoring_log.db')
+
+
+
+
+c = conn.cursor()
+
+#this is in order to use the datetime format correctly, slightly inefficient and may be updated in the future
+def swapPositions(list1, pos1, pos2):
+     
+    a = list1[pos1]
+    b = list1[pos2]
+
+    list1[pos1] = b
+    list1[pos2] = a
+    return list1
+ 
+def days_between_dates(dt1, dt2):
+    date_format = "%Y/%m/%d"
+    a = time.mktime(time.strptime(dt1, date_format))
+    b = time.mktime(time.strptime(dt2, date_format))
+    delta = b - a
+    return int(delta / 86400)
+ 
+ 
+
+#this function displays an income graph and how much I make each week, needs to be updated to include more than 10 weeks worth of data
+def Weekly_Revenue():
+    Entries = []
+    weeks = 0
+    Baseline_Y = 2024
+    Baseline_m = 7
+    Baseline_d = 18
+    conn = sqlite3.connect('tutoring_log.db')
+    c = conn.cursor()
+
+    turtle.setworldcoordinates(0 , 0, 600, 600)
+
+
+
+    Pointer = turtle.Turtle()
+    Pointer.color("black")
+    Pointer.speed(0)
+    Pointer.ht()
+
+
+    Pointer.up()
+    Pointer.goto(50,20)
+    Pointer.down()
+    Pointer.left(90)
+    Pointer.forward(500)
+    Pointer.right(180)
+    Pointer.forward(500)
+    Pointer.left(90)
+    Pointer.forward(500)
+
+    Pointer.up()
+    Pointer.goto(60, 550)
+    Pointer.write("Weekly Income in HKD")
+
+    Pointer.goto(50,20)
+    Pointer.setheading(90)
+    Pointer.down()
+    
+    c.execute("SELECT *, oid FROM log2")
+    Records = c.fetchall()
+
+    for i in range(0,10):
+        Pointer.forward(45)
+        Pointer.left(90)
+        Pointer.forward(15)
+        Pointer.up()
+        Pointer.forward(30)
+        Pointer.left(90)
+        Pointer.forward(7)
+        text = (i+1) * 500
+        Pointer.write(str(text) + "$", font=("Arial", 10))
+        Pointer.right(180)
+        Pointer.forward(7)
+        Pointer.setheading(0)
+        Pointer.forward(45)
+        Pointer.left(90)
+        Pointer.down()
+
+    Pointer.goto(50,20)
+    Pointer.setheading(0)
+
+    for i in range(0,10):
+        Pointer.forward(45)
+        Pointer.right(90)
+        Pointer.forward(15)
+        Pointer.up()
+        Pointer.forward(15)
+        Pointer.right(90)
+        Pointer.forward(15)
+        Pointer.write( "Week " + str(i+1), font=("Arial", 10))
+        Pointer.left(180)
+        Pointer.forward(15)
+        Pointer.setheading(90)
+        Pointer.forward(30)
+        Pointer.right(90)
+        Pointer.down()
+
+    for record in Records:
+        bigstore = record[3].split("/")
+        temporary = swapPositions(bigstore , 0, 2)
+        #storage = ' '.join(temporary)
+        #storage = int(storage)
+        #storage2 = datetime(storage)
+        a = datetime(int(temporary[0]), int(temporary[1]), int(temporary[2]))
+        Entries.append([a, record[1]])
+
+    today = date.today()
+    formatted_date = today.strftime('%Y/%m/%d')
+
+    Pointer.up()
+    Pointer.goto(50, 20)
+    Pointer.down()
+
+    
+    true_weeks = days_between_dates('2024/07/18', formatted_date)/7
+    if not true_weeks % 7:
+        weeks = int(true_weeks) + 1;
+    else:
+        weeks = int(true_weeks)
+    Pointer.goto(50,20)
+    Pointer.down()
+
+    for x in range(0, weeks):
+        Week_Earnings = 0
+        for w in range(0, len(Entries)):
+            format1 = int(x) * 7
+            format2 = (int(x) * 7) + 7
+            
+            if (Entries[w][0] >= datetime(Baseline_Y, Baseline_m, Baseline_d) + timedelta(days = format1) and (Entries[w][0] <= datetime(Baseline_Y, Baseline_m, Baseline_d) + timedelta(days = format2))):
+                Week_Earnings += Records[w][1]
+
+        Pointer.goto((x+1) * 45 + 50, (Week_Earnings*45)/500 + 20)
+        Pointer.dot()
+        Pointer.write("(" + "Week" + " " + str(x+1) + ", " + str(Week_Earnings) + ")")
+                
+                
+            
+
+
+
+    
+
+
+            
+            
+        
+        
+    
+        
+
+
+    
+    
+    
+    
+    
+
+#automates sending the whatsapp invoices, as I only have one agent currently I only need one message command, 
+#can easily be altered with contact name insql database to send different invoices to different parents if needed
+
+def Message():
+
+
+
+    Placeholder =  time.strftime('%X (%d/%m/%y)')
+
+    
+    conn = sqlite3.connect('tutoring_log.db')
+
+    classes = []
+
+    c = conn.cursor()
+
+    c.execute("SELECT *, oid FROM log2")
+
+    Records = c.fetchall()
+
+    Storage_payment = 0
+
+    for record in Records:
+        if record[4] == "NO":
+            Storage_payment += record[1]
+            string = str(record[0]) + " " + str(record[1]) + "HKD " + str(record[3])
+            classes.append(string)
+
+
+
+
+    whatsapp_msg = "Hello! This is an automated message regarding this weeks payment. \n \n This week you owe {} HKD The lessons are listed below: \n \n {}".format(Storage_payment, classes)
+
+
+    
+#currently the message is manually set in terms of time, can easily update this using datetime module in order to use current time 
+    pwk.sendwhatmsg("(number goes here)", whatsapp_msg , 22, 4, 15, True, 2)
+
+
+    c.execute("""UPDATE log2 SET 
+                    Paid = :Paid
+                    WHERE Paid = :Paid2""",
+                    {
+
+                     'Paid': "YES",
+
+                     'Paid2': "NO"
+
+                    })
+
+    
+
+
+    conn.commit()
+    conn.close()
+
+
+
+
+
+
+def submit():
+    conn = sqlite3.connect('tutoring_log.db')
+    c = conn.cursor()
+
+    c.execute("INSERT INTO log2 VALUES (:C_name, :V_name, :S_name, :D_name, :P_name, :Co_name )",
+                    {
+                            'C_name': C_name.get(),
+                            'V_name': V_name.get(),
+                            'S_name': S_name.get(),
+                            'D_name': D_name.get(),
+                            'P_name': P_name.get().upper(),
+                            'Co_name': Co_name.get()
+                    })
+    
+    conn.commit()
+    conn.close()
+
+
+    
+    C_name.delete(0,END)
+    V_name.delete(0,END)
+    S_name.delete(0,END)
+    D_name.delete(0,END)
+    P_name.delete(0,END)
+    Co_name.delete(0,END)
+
+
+def delete():
+    conn = sqlite3.connect('tutoring_log.db')
+    c = conn.cursor()
+
+    c.execute("DELETE from log2 WHERE oid = " + Delete_box.get())
+
+    Delete_box.delete(0, END)
+
+    conn.commit()
+
+    conn.close()
+                
+
+def query():
+    j = 1
+    conn = sqlite3.connect('tutoring_log.db')
+    c = conn.cursor()
+
+    c.execute("SELECT *, oid FROM log2")
+    Records = c.fetchall()
+
+    print_records = ""
+    all_records = []
+
+    for record in Records:
+        print_records += str(record) + "\n"
+        all_records.append(record)
+
+    #query_label = Label(root, text=print_records)
+    #query_label.grid(row = 5, column = 2, pady = 10, padx = 10, ipadx=100)
+
+
+    display = Tk()
+    display.title("Records Available (last 30)")
+
+    
+    #for i in range(0,3): , return this loop once we get enough entries
+    for z in range(0, len(all_records)):
+        temporary = Entry(display, width = 60, justify = 'center')
+        temporary.grid(row = z, column = 0)
+        temporary.insert(0, all_records[z])
+        temporary.configure(state="disabled", disabledbackground="white")
+
+
+
+
+#a function I am currently developing to make it so that i can look at the data sorted by each month regarding queries
+def AdvancedQuery():
+    conn = sqlite3.connect('tutoring_log.db')
+    c = conn.cursor()
+
+    global MonthYear
+
+    AdvancedQuery = Tk()
+    AdvancedQuery.title("Available Records")
+    AdvancedQuery.geometry('600x600')
+
+    MonthYear = Entry(AdvancedQuery, width = 60, padx = 30, justify = 'center')
+    MonthYear.grid(row = 1, column = 2)
+
+    Submission = Button(AdvancedQuery, text = 'Search', padx = 30, command = catalogue)
+    Submission.grid(row = 2, column = 2)
+
+   
+            
+    
+
+
+
+            
+            
+            
+        
+
+
+    conn.commit()
+    conn.close()
+
+def catalogue():
+
+    conn = sqlite3.connect('tutoring_log.db')
+    c = conn.cursor()
+    c.execute("SELECT *, oid FROM log2")
+    Records = c.fetchall()
+    selected = []
+
+    for record in Records:
+        storage = record[2].split("/")
+        storage.pop(0)
+        if ''.join(storage) == MonthYear.get():
+            selected.append(record)
+
+    for x in range(0, len(selected)):
+        temporary = Entry(AdvancedQuery, width = 60, justify = "center")
+        temporary.grid(row = x, column = 0)
+        temporary.insert(0, selected[x])
+        temporary.configure(state = "disabled", disabledbackground = "white")
+
+    conn.commit()
+    conn.close()
+    
+
+def owed():
+
+    conn = sqlite3.connect('tutoring_log.db')
+    c = conn.cursor()
+
+    c.execute("SELECT *, oid FROM log2")
+
+    Total = 0
+
+    Records = c.fetchall()
+
+    for record in Records:
+        if record[4] == "NO":
+            Total += record[1]
+
+
+
+    Total_Owed_Label = Label(root, text = str(Total) + "HKD Due to be Paid")
+    Total_Owed_Label.grid(row = 7, column = 2, pady = 10, padx = 10, ipadx=100)
+
+    return Total
+    
+
+    conn.commit()
+    conn.close()
+
+def save():
+
+    conn = sqlite3.connect('tutoring_log.db')
+    c = conn.cursor()
+
+    Record_id = Delete_box.get()
+    c.execute("""UPDATE log2 SET 
+                    Client_name = :Client,
+                    Class_Value = :Class,
+                    Subject_Name = :Subject,
+                    Date = :Date,
+                    Paid = :Paid,
+                    Contact = :Contact
+                  WHERE oid = :oid""",
+                {'Client': C_name_editor.get(),
+                 'Class': V_name_editor.get(),
+                 'Subject': S_name_editor.get(),
+                 'Date': D_name_editor.get(),
+                 'Paid': P_name_editor.get(),
+                 'Contact': Co_name_editor.get(),
+                 'oid': Record_id
+                })
+    
+                    
+              
+
+
+
+    conn.commit()
+    conn.close()
+
+    editor.destroy()
+
+    
+
+def Update():
+    global editor
+    
+    global C_name_editor
+    global V_name_editor
+    global S_name_editor
+    global D_name_editor
+    global P_name_editor
+    global Co_name_editor
+    
+    editor = Tk()
+    root.title("Accessing Records")
+    editor.geometry("1700x400")
+
+    conn = sqlite3.connect('tutoring_log.db')
+    c = conn.cursor()
+
+    Record_id = Delete_box.get()
+
+    c.execute("SELECT * FROM log2 WHERE oid = "+ str(Record_id))
+    Records = c.fetchall()
+
+    
+
+
+
+    
+
+    
+    #query_label = Label(root, text=print_records)
+    #query_label.grid(row = 5, column = 2, pady = 10, padx = 10, ipadx=100)
+        
+
+
+    conn.commit()
+    conn.close()
+    
+
+    C_name_editor = Entry(editor, width=30)
+    C_name_editor.grid(row = 1, column = 0, padx = 20, pady = (10,0))
+    V_name_editor = Entry(editor, width=30)
+    V_name_editor.grid(row = 1, column = 1, padx=20)
+    S_name_editor = Entry(editor, width=30)
+    S_name_editor.grid(row = 1, column = 2, padx=20)
+    D_name_editor = Entry(editor, width=30)
+    D_name_editor.grid(row = 1, column = 3, padx=20)
+    P_name_editor = Entry(editor, width=30)
+    P_name_editor.grid(row = 1, column = 4, padx=20)
+    Co_name_editor = Entry(editor, width=30)
+    Co_name_editor.grid(row = 1, column =5, padx=20)
+    
+    
+
+
+
+
+    C_name_label = Label(editor, text="Client Name")
+    C_name_label.grid(row = 0, column = 0)
+    V_name_label = Label(editor, text="Class Value")
+    V_name_label.grid(row = 0, column = 1)
+    S_name_label = Label(editor, text="Subject")
+    S_name_label.grid(row = 0, column = 2)
+    D_name_label = Label(editor, text="Date of Class")
+    D_name_label.grid(row = 0, column = 3)
+    P_name_label = Label(editor, text="Paid?")
+    P_name_label.grid(row = 0, column = 4)
+    Co_name_label = Label(editor, text="Contact")
+    Co_name_label.grid(row = 0, column = 5)
+
+    for record in Records:
+        C_name_editor.insert(0, record[0])
+        V_name_editor.insert(0, record[1])
+        S_name_editor.insert(0, record[2])
+        D_name_editor.insert(0, record[3])
+        P_name_editor.insert(0, record[4])
+        if not record[5]:
+            Co_name_editor.insert(0, "Keyush")
+        else:
+            Co_name_editor.insert(0, record[5])
+        #Co_name_editor.insert(0, record[5])
+
+        
+
+    Save_btn = Button(editor, text = "Save", command = save)
+    Save_btn.grid(row = 3, column = 2, pady = 10, ipadx = 105)
+
+
+    
+ 
+
+    
+            
+    
+
+
+ #this is the command used to actually create the database, and then I had to alter it in order to make it more specified to different contacts   
+
+#c.execute("""CREATE TABLE log2 (
+#		Client_name text,
+#		Class_Value integer,
+#		Subject_Name text,
+
+#		Date text,
+#		Paid text
+#		)""")
+
+#c.execute("""ALTER TABLE log2 ADD Contact text""")
+
+
+
+
+C_name = Entry(root, width=30)
+C_name.grid(row = 0, column = 1, padx = 20)
+V_name = Entry(root, width=30)
+V_name.grid(row = 1, column = 1, padx=20)
+S_name = Entry(root, width=30)
+S_name.grid(row = 2, column = 1, padx=20)
+D_name = Entry(root, width=30)
+D_name.grid(row = 3, column = 1, padx=20)
+P_name = Entry(root, width=30)
+P_name.grid(row = 4, column = 1, padx=20)
+Co_name = Entry(root, width=30)
+Co_name.grid(row = 5, column = 1, padx=20)
+Delete_box = Entry(root, width = 30)
+Delete_box.grid(row = 6, column = 1, pady = 10)
+
+
+
+C_name_label = Label(root, text="Client Name")
+C_name_label.grid(row = 0, column = 0)
+V_name_label = Label(root, text="Class Value")
+V_name_label.grid(row = 1, column = 0)
+S_name_label = Label(root, text="Subject")
+S_name_label.grid(row = 2, column = 0)
+D_name_label = Label(root, text="Date of Class")
+D_name_label.grid(row = 3, column = 0)
+P_name_label = Label(root, text="Paid?")
+P_name_label.grid(row = 4, column = 0)
+Co_name_label = Label(root, text="Contact Name")
+Co_name_label.grid(row = 5, column = 0)
+Delete_box_label = Label(root, text = "Select ID")
+Delete_box_label.grid(row = 6, column = 0, padx=20)
+
+
+
+Progress_label = Label(root, text = "Last sent: " + Placeholder)
+Progress_label.grid(row = 0, column = 2, padx = 20, pady = 10)
+
+Submit_btn = Button(root, text= "Add Entry", command=submit)
+Submit_btn.grid(row = 1, column = 2, pady = 10, padx = 10, ipadx=100)
+
+Query_btn = Button(root, text = "Show Records", command = query)
+Query_btn.grid(row = 2, column = 2, pady = 10, padx = 10, ipadx=90)
+
+Total_btn = Button(root, text = "Show Owed", command = owed)
+Total_btn.grid(row = 3, column = 2, pady = 10, padx = 10, ipadx=97)
+
+Delete_btn = Button(root, text = "Delete Record", command = delete)
+Delete_btn.grid(row=4, column = 2, pady=10, padx = 10, ipadx=97)
+
+Update_btn = Button(root, text = "Update Record", command = Update)
+Update_btn.grid(row=5, column = 2, pady=10, padx = 10, ipadx=97)
+
+Weekly_Rev_btn = Button(root, text = "Income Graph", command = Weekly_Revenue)
+Weekly_Rev_btn.grid(row = 6, column = 2, pady = 10, padx=10, ipadx = 97)
+
+#Iterator_btn = Button(root, text = "iterator", command = iterator)
+#Iterator_btn.grid(row = 7, column = 2, pady = 10, padx = 10, ipadx = 97)
+
+
+
+#Message()
+
+    # Runs constantly when the current week day is 
+    # after Monday (including Monday)
+
+
+
+
+
+
+# Run job on a specific day of the week
+#schedule.every().sunday.at("15:00").do(Message())
+
+
+
+#while True:
+#    schedule.run_pending()
+ #   time.sleep(1800)
+
+
+
+#Message(), command used in order to send the messages on whatsapp to parents
+
+
+
+    
+conn.commit()
+
+conn.close()
+
+
+root.mainloop()
